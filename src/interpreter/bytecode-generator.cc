@@ -56,33 +56,36 @@ namespace interpreter {
 // Scoped class tracking context objects created by the visitor. Represents
 // mutations of the context chain within the function body, allowing pushing and
 // popping of the current {context_register} during visitation.
+// 3. 运行时 Context 链 — ContextScope 管理 outer 引用
 class V8_NODISCARD BytecodeGenerator::ContextScope {
  public:
+  // 每次 ContextScope 构造函数 → 链延长；~析构 → 链缩短，块执行完自动回收。
   ContextScope(BytecodeGenerator* generator, Scope* scope,
                Register outer_context_reg = Register())
       : generator_(generator),
         scope_(scope),
-        outer_(generator_->execution_context()),
+        outer_(generator_->execution_context()), // 记录外层 Context
+        // outer_ 指针 = 规范 outer reference = 作用域链
         register_(Register::current_context()),
         depth_(0) {
     DCHECK(scope->NeedsContext() || outer_ == nullptr);
     if (outer_) {
-      depth_ = outer_->depth_ + 1;
+      depth_ = outer_->depth_ + 1; // 链深度 +1
 
       // Push the outer context into a new context register.
       if (!outer_context_reg.is_valid()) {
         outer_context_reg = generator_->register_allocator()->NewRegister();
       }
-      outer_->set_register(outer_context_reg);
-      generator_->builder()->PushContext(outer_context_reg);
+      outer_->set_register(outer_context_reg); 
+      generator_->builder()->PushContext(outer_context_reg); // 旧 Context 入寄存器
     }
-    generator_->set_execution_context(this);
+    generator_->set_execution_context(this); // 当前 Context = 新建的这个
   }
 
   ~ContextScope() {
     if (outer_) {
       DCHECK_EQ(register_.index(), Register::current_context().index());
-      generator_->builder()->PopContext(outer_->reg());
+      generator_->builder()->PopContext(outer_->reg()); // 恢复外层 Context
       outer_->set_register(register_);
     }
     generator_->set_execution_context(outer_);
