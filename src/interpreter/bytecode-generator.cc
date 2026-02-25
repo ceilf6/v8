@@ -95,8 +95,9 @@ class V8_NODISCARD BytecodeGenerator::ContextScope {
   ContextScope& operator=(const ContextScope&) = delete;
 
   // Returns the depth of the given |scope| for the current execution context.
+  // 把"编译期 Scope 树距离"转换成"运行时 Context 链跳转深度"的桥梁
   int ContextChainDepth(Scope* scope) {
-    return scope_->ContextChainLength(scope);
+    return scope_->ContextChainLength(scope); // 编译期算好深度 → 运行时用 depth 跳链
   }
 
   // Returns the execution context at |depth| in the current context chain if it
