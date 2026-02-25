@@ -483,6 +483,7 @@ enum ContextLookupFlags {
 // Script contexts from all top-level scripts are gathered in
 // ScriptContextTable.
 
+// 所有上下文基类
 class Context : public TorqueGeneratedContext<Context, HeapObject> {
  public:
   using TorqueGeneratedContext::length;      // Non-atomic.
@@ -635,14 +636,14 @@ class Context : public TorqueGeneratedContext<Context, HeapObject> {
 
   // Predicates for context types.  IsNativeContext is already defined on
   // Object.
-  inline bool IsFunctionContext() const;
+  inline bool IsFunctionContext() const; // 函数执行上下文
   inline bool IsCatchContext() const;
   inline bool IsWithContext() const;
   inline bool IsDebugEvaluateContext() const;
   inline bool IsAwaitContext() const;
-  inline bool IsBlockContext() const;
-  inline bool IsModuleContext() const;
-  inline bool IsEvalContext() const;
+  inline bool IsBlockContext() const; // 块级上下文
+  inline bool IsModuleContext() const; // 模块上下文
+  inline bool IsEvalContext() const; // eval上下文
   inline bool IsScriptContext() const;
   inline bool HasContextCells() const;
 

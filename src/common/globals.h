@@ -2150,6 +2150,7 @@ static_assert(kMinAdditiveSafeInteger + (kMinAdditiveSafeInteger + 1) >=
               kMinSafeInteger);
 
 // The order of this enum has to be kept in sync with the predicates below.
+// 进入块级作用域时压入新 Context（仅含 kLet/kConst 变量），kVar 变量在编译期就被提升到函数级 Context slot，运行时根本不需要第二条链
 enum class VariableMode : uint8_t {
   // User declared variables:
   kLet,  // declared via 'let' declarations (first lexical)
@@ -2163,6 +2164,8 @@ enum class VariableMode : uint8_t {
                 // (last lexical)
 
   kVar,  // declared via 'var', and 'function' declarations
+  // 为区分 var 的提升，ES6 从 变量对象VO => 词法环境 + 变量环境
+  // 这里的 kVar 就是用于 变量环境
 
   // Variables introduced by the compiler:
   kTemporary,  // temporary variables (not user-visible), stack-allocated
