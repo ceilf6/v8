@@ -313,6 +313,7 @@ class Variable final : public ZoneObject {
     set_is_used();
   }
 
+  // 给每个变量打初始化标志
   static InitializationFlag DefaultInitializationFlag(VariableMode mode) {
     DCHECK(IsDeclaredVariableMode(mode));
     return mode == VariableMode::kVar ? kCreatedInitialized

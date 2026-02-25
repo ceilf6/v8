@@ -4896,6 +4896,7 @@ void BytecodeGenerator::RememberHoleCheckInCurrentBlock(Variable* variable) {
                                       vars_in_hole_check_bitmap_);
 }
 
+// 字节码生成时插入 TDZ 检查
 void BytecodeGenerator::BuildThrowIfHole(Variable* variable) {
   if (variable->is_this()) {
     DCHECK(variable->mode() == VariableMode::kConst);

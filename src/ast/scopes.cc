@@ -222,6 +222,7 @@ ClassScope::ClassScope(IsolateT* isolate, Zone* zone,
     DCHECK_EQ(scope_info->ContextLocalMode(index), VariableMode::kConst);
     DCHECK_EQ(scope_info->ContextLocalInitFlag(index),
               InitializationFlag::kNeedsInitialization);
+              // kNeedsInitialization 即 let/const 声明的变量
     DCHECK_EQ(scope_info->ContextLocalMaybeAssignedFlag(index),
               MaybeAssignedFlag::kNotAssigned);
     Variable* var = DeclareClassVariable(
@@ -1118,7 +1119,10 @@ Variable* Scope::DeclareVariable(
   DCHECK(!GetDeclarationScope()->is_being_lazily_parsed());
   DCHECK(!GetDeclarationScope()->was_lazily_parsed());
 
+  // var 声明被提升到函数作用域 => 穿透机制
   if (mode == VariableMode::kVar && !is_declaration_scope()) {
+    // 当前作用域是块级（if/for/{}），但 var 声明不属于这里
+    // → 自动跳转到最近的函数/脚本作用域去声明
     return GetDeclarationScope()->DeclareVariable(
         declaration, name, pos, mode, kind, init, was_added,
         sloppy_mode_block_scope_function_redefinition, ok);
