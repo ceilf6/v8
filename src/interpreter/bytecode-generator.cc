@@ -1723,6 +1723,8 @@ void BytecodeGenerator::GenerateBytecode(uintptr_t stack_limit) {
     BuildGeneratorPrologue();
   }
 
+  // 2. 字节码生成期 — 何时创 新Context
+  // GenerateBytecode()，函数级词法环境
   if (NeedsContextInitialization(closure_scope())) {
     // Push a new inner context scope for the function.
     BuildNewLocalActivationContext();
@@ -2092,15 +2094,17 @@ void BytecodeGenerator::BuildGeneratorEpilogue() {
   CHECK_EQ(suspend_count_, generator_jump_table_->size());
 }
 
+// VisitBlock()，块级词法环境
 void BytecodeGenerator::VisitBlock(Block* stmt) {
   // Visit declarations and statements.
   CurrentScope current_scope(this, stmt->scope());
   if (stmt->scope() != nullptr && stmt->scope()->NeedsContext()) {
-    BuildNewLocalBlockContext(stmt->scope());
-    ContextScope scope(this, stmt->scope());
-    VisitBlockMaybeDispose(stmt);
+      BuildNewLocalBlockContext(stmt->scope());  // ← 创建 BlockContext
+      ContextScope scope(this, stmt->scope());   // ← 压栈
+      VisitBlockMaybeDispose(stmt);
+      // ContextScope 析构 → 自动 PopContext（出栈）
   } else {
-    VisitBlockMaybeDispose(stmt);
+      VisitBlockMaybeDispose(stmt);  // 没有 let/const → 直接走，不创建 Context
   }
 }
 
