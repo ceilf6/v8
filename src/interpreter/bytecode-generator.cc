@@ -4750,9 +4750,11 @@ void BytecodeGenerator::BuildVariableLoad(Variable* variable,
       }
       break;
     }
+    // 4. 变量读取 — 沿 Context 链查找
     case VariableLocation::CONTEXT: {
+      // 计算目标变量在 Context 链上的深度
       int depth = execution_context()->ContextChainDepth(variable->scope());
-      ContextScope* context = execution_context()->Previous(depth);
+      ContextScope* context = execution_context()->Previous(depth); // 沿链向上找
       Register context_reg;
       if (context) {
         context_reg = context->reg();
@@ -4767,9 +4769,11 @@ void BytecodeGenerator::BuildVariableLoad(Variable* variable,
         return;
       }
 
+      // 生成 LoadContextSlot 字节码，附带链深度 depth
       builder()->LoadContextSlot(context_reg, variable, depth);
+      // let/const 还需要 TDZ 检查
       if (VariableNeedsHoleCheckInCurrentBlock(variable, hole_check_mode)) {
-        BuildThrowIfHole(variable);
+        BuildThrowIfHole(variable); // → ThrowReferenceErrorIfHole
       }
       if (is_immutable) {
         SetVariableInRegister(variable, acc);
