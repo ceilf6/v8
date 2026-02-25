@@ -441,12 +441,16 @@ class V8_EXPORT_PRIVATE Scope : public NON_EXPORTED_BASE(ZoneObject) {
   }
 
   // Whether this needs to be represented by a runtime context.
+  // 1. 编译期 — 决定哪些变量需要进 Context
+  // 作用域是否需要一个运行时 Context 对象（= 是否需要词法环境）
   bool NeedsContext() const {
     // Catch scopes always have heap slots.
     DCHECK_IMPLIES(is_catch_scope(), num_heap_slots() > 0);
     DCHECK_IMPLIES(is_with_scope(), num_heap_slots() > 0);
     DCHECK_IMPLIES(ForceContextForLanguageMode(), num_heap_slots() > 0);
     return num_heap_slots() > 0;
+    // num_heap_slots > 0 → 有变量需要分配在堆上（被闭包捕获/块级let/const）
+    // with / catch 作用域永远需要；函数和块级作用域只有存在堆变量时才需要。没有闭包、没有 let/const 的普通块 {} 直接跳过，不创建 Context
   }
 
   // Use Scope::ForEach for depth first traversal of scopes.
