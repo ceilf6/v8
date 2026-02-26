@@ -8557,6 +8557,7 @@ void BytecodeGenerator::BuildLocalActivationContextInitialization() {
 
   // B. this被闭包捕获
   // 若内层函数引用了外层函数的 this，分配阶段调用 ForceContextAllocation()，强制把 this 提升到 Context 堆槽
+  // 从栈 => 堆，存储在 Context 对象中，实现了生命周期的延长，延缓了垃圾回收
   if (scope->has_this_declaration() && scope->receiver()->IsContextSlot()) {
     Variable* variable = scope->receiver();
     Register receiver(builder()->Receiver());
@@ -8564,6 +8565,7 @@ void BytecodeGenerator::BuildLocalActivationContextInitialization() {
     DCHECK_EQ(0, scope->ContextChainLength(variable->scope()));
     builder()->LoadAccumulatorWithRegister(receiver).StoreContextSlot(
         execution_context()->reg(), variable, 0); 
+        // ↑ 堆上的 Context 对象
         // 把栈帧里的 this 值，存入 Context[slot_index]
   }
 

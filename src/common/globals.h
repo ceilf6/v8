@@ -2307,6 +2307,11 @@ inline bool IsLexicalVariableMode(VariableMode mode) {
   return mode <= VariableMode::kLastLexicalVariableMode;
 }
 
+// Context slot layout:
+//   slot 0: SCOPE_INFO_INDEX
+//   slot 1: PREVIOUS_INDEX  ← 指向外层 Context（在堆上）
+//   slot 2: EXTENSION_INDEX
+//   slot 3+: variable slots
 enum VariableLocation : uint8_t {
   // Before and during variable allocation, a variable whose location is
   // not yet determined.  After allocation, a variable looked up as a
@@ -2317,16 +2322,16 @@ enum VariableLocation : uint8_t {
   // A slot in the parameter section on the stack.  index() is the
   // parameter index, counting left-to-right.  The receiver is index -1;
   // the first parameter is index 0.
-  PARAMETER,
+  PARAMETER, // 栈帧 parameter slot
 
   // A slot in the local section on the stack.  index() is the variable
   // index in the stack frame, starting at 0.
-  LOCAL,
+  LOCAL, // 栈帧 stack slot（函数返回即消失）
 
   // An indexed slot in a heap context.  index() is the variable index in
   // the context object on the heap, starting at 0.  scope() is the
   // corresponding scope.
-  CONTEXT,
+  CONTEXT, // 堆上 Context 对象（随 GC 生命周期，可被闭包持有）
 
   // A named slot in a heap context.  name() is the variable name in the
   // context object on the heap, with lookup starting at the current
