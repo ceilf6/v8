@@ -92,6 +92,7 @@ bool SemiSpaceNewSpace::IsAddressBelowAgeMark(Address address) const {
 }
 
 bool SemiSpaceNewSpace::ShouldBePromoted(Address object) const {
+  // object 地址 < age_mark → 上一轮就已经活着（存活超过1次）→ 晋升
   return IsAddressBelowAgeMark(object);
 }
 

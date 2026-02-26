@@ -613,6 +613,7 @@ bool Heap::ShouldOptimizeForBattery() const {
          isolate()->BatterySaverModeEnabled();
 }
 
+// GC 类型选择
 GarbageCollector Heap::SelectGarbageCollector(AllocationSpace space,
                                               GarbageCollectionReason gc_reason,
                                               const char** reason) const {
@@ -632,6 +633,7 @@ GarbageCollector Heap::SelectGarbageCollector(AllocationSpace space,
     return GarbageCollector::MINOR_MARK_SWEEPER;
   }
   // Is global GC requested?
+  // 1. 请求的是老生代空间 → 必须走 Major GC
   if (space != NEW_SPACE && space != NEW_LO_SPACE) {
     isolate_->counters()->gc_compactor_caused_by_request()->Increment();
     *reason = "GC in old space requested";
@@ -644,11 +646,13 @@ GarbageCollector Heap::SelectGarbageCollector(AllocationSpace space,
     return GarbageCollector::MARK_COMPACTOR;
   }
 
+  // 2. 增量标记已经在运行 → 强制完成 Major GC
   if (incremental_marking()->IsMajorMarking()) {
     *reason = "Incremental marking forced finalization";
     return GarbageCollector::MARK_COMPACTOR;
   }
 
+  // 3. 老生代放不下晋升对象 → 升级为 Major GC（防止 Scavenge 失败）
   if (!CanPromoteYoungAndExpandOldGeneration(0)) {
     isolate_->counters()
         ->gc_compactor_caused_by_oldspace_exhaustion()
@@ -661,7 +665,8 @@ GarbageCollector Heap::SelectGarbageCollector(AllocationSpace space,
   DCHECK(!v8_flags.gc_global);
   // Default
   *reason = nullptr;
-  return YoungGenerationCollector();
+  return YoungGenerationCollector(); // 4. 默认：新生代用 Minor GC 
+  // SCAVENGER 或 MINOR_MARK_SWEEPER
 }
 
 void Heap::SetGCState(HeapState state) {
@@ -2736,6 +2741,7 @@ void Heap::Scavenge() {
   SetGCState(SCAVENGE);
 
   // Implements Cheney's copying algorithm
+  // Minor GC - Cheney 复制算法
   scavenger_collector_->CollectGarbage();
 
   SetGCState(NOT_IN_GC);

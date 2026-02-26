@@ -1623,6 +1623,7 @@ void HandleSurvivingNewLargeObjects(
 
 }  // namespace
 
+// 把活着的对象从 From-space 复制走，From-space 变成全空，下次 GC 的 To-space。从不扫描垃圾——垃圾就是"没被复制到"的对象，直接整体废弃
 void ScavengerCollector::CollectGarbage() {
   Isolate* const isolate = heap_->isolate();
   ScopedFullHeapCrashKey collect_full_heap_dump_if_crash(isolate);

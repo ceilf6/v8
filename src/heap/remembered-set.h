@@ -88,7 +88,9 @@ class RememberedSetOperations {
 
 template <RememberedSetType type>
 class RememberedSet : public AllStatic {
- public:
+  // 记录哪些老生代 slot 指向新生代对象
+  // Scavenge 时作为额外的根集合扫描
+  public:
   // Given a page and a slot in that page, this function adds the slot to the
   // remembered set.
   template <AccessMode access_mode>

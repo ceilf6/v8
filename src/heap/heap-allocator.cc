@@ -128,7 +128,7 @@ namespace {
 
 constexpr AllocationSpace AllocationTypeToGCSpace(AllocationType type) {
   switch (type) {
-    case AllocationType::kYoung:
+    case AllocationType::kYoung: // 绝大多数 JS 对象（new {}、[]、函数等） // 大多数出生就在新生代
       return NEW_SPACE;
     case AllocationType::kOld:
     case AllocationType::kCode:

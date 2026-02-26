@@ -66,7 +66,12 @@ class V8_EXPORT_PRIVATE V8_NODISCARD WriteBarrierModeScope final {
 // Refer to the `ForFoo()` versions which will dispatch to all relevant barriers
 // instead of emiting marking, compaction, generational, and shared barriers
 // separately.
+
+// Scavenger 只扫描新生代，但老生代对象可能持有新生代对象的指针
+// 于是对象指针写入时会触发 写屏障
 class V8_EXPORT_PRIVATE WriteBarrier final {
+  // 每次 HeapObject 的 field 被写入时调用
+  // 如果是老生代 → 新生代的引用，记录到 Remembered Set
  public:
   // Trampolines for generated code. Have to take raw addresses.
   static void EphemeronKeyWriteBarrierFromCode(Address raw_object,

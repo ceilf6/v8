@@ -66,9 +66,9 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
 
     // Chunk in the from-space or a young large page that was not scavenged
     // yet.
-    FROM_PAGE = 1u << 3,
+    FROM_PAGE = 1u << 3, // ← 新生代 From 半区
     // Chunk in the to-space or a young large page that was scavenged.
-    TO_PAGE = 1u << 4,
+    TO_PAGE = 1u << 4, // ← 新生代 To 半区
 
     // Indicates whether incremental marking is currently enabled.
     INCREMENTAL_MARKING = 1u << 5,
@@ -78,11 +78,11 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
     BLACK_ALLOCATED = 1u << 6,
 
     // The chunk represents a large chunk of non-uniform size.
-    LARGE_PAGE = 1u << 7,
+    LARGE_PAGE = 1u << 7, // 大对象页
 
     // The chunk was selected as evacuation candidate, meaning that objects on
     // this chunk are being relocated.
-    EVACUATION_CANDIDATE = 1u << 8,
+    EVACUATION_CANDIDATE = 1u << 8, // 被选为压缩候选
 
     // The chunk is in the the new space of the young generation and already
     // survived at least one garbage collection cycle.
@@ -217,7 +217,7 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
   V8_INLINE bool InYoungGeneration() const {
     UNREACHABLE_WITH_STICKY_MARK_BITS();
     constexpr uintptr_t kYoungGenerationMask = FROM_PAGE | TO_PAGE;
-    return GetFlags() & kYoungGenerationMask;
+    return GetFlags() & kYoungGenerationMask; // 2. 读内存页上的 flag 位
   }
 
   // Checks whether chunk is either in young gen or shared heap.

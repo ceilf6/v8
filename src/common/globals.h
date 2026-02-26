@@ -1486,16 +1486,17 @@ inline std::ostream& operator<<(std::ostream& os, AllocationSpace space) {
   return os << ToString(space);
 }
 
+// 堆内存 内部会按对象生命周期分代多个空间
 enum class AllocationType : uint8_t {
-  kYoung,  // Regular object allocated in NEW_SPACE or NEW_LO_SPACE.
-  kOld,    // Regular object allocated in OLD_SPACE or LO_SPACE.
-  kCode,   // InstructionStream object allocated in CODE_SPACE or CODE_LO_SPACE.
-  kMap,    // Map object allocated in OLD_SPACE.
-  kReadOnly,       // Object allocated in RO_SPACE.
+  kYoung,    // NEW_SPACE / NEW_LO_SPACE    ← 新生代
+  kOld,      // OLD_SPACE / LO_SPACE        ← 老生代
+  kCode,     // CODE_SPACE / CODE_LO_SPACE  ← 代码空间
+  kMap,      // OLD_SPACE (Map 对象专用)
+  kReadOnly, // RO_SPACE                    ← 只读空间（内置对象）
   kSharedOld,      // Regular object allocated in OLD_SPACE in the shared heap.
   kSharedMap,      // Map object in OLD_SPACE in the shared heap.
   kSharedTrusted,  // Trusted objects in TRUSTED_SPACE in the shared heap.
-  kTrusted,        // Object allocated in TRUSTED_SPACE or TRUSTED_LO_SPACE.
+  kTrusted,  // TRUSTED_SPACE               ← 受信任空间
 };
 
 constexpr const char* ToString(AllocationType kind) {

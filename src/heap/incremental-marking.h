@@ -80,6 +80,7 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
   // Checks whether incremental marking is safe to be started and whether it
   // should be started.
   bool CanAndShouldBeStarted() const;
+  // Major GC 的标记阶段如果一次完成，会造成百毫秒级暂停（Stop-The-World）。V8 用增量标记把标记任务切成小片，穿插在 JS 执行之间
   void Start(GarbageCollector garbage_collector,
              GarbageCollectionReason gc_reason, const char* reason);
   // Returns true if incremental marking was running and false otherwise.

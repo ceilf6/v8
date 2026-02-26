@@ -511,6 +511,7 @@ void MarkCompactCollector::MaybeEnableBackgroundThreadsInCycle(
   }
 }
 
+// Major GC
 void MarkCompactCollector::CollectGarbage() {
   // Make sure that Prepare() has been called. The individual steps below will
   // update the state as they proceed.
@@ -518,7 +519,7 @@ void MarkCompactCollector::CollectGarbage() {
 
   MaybeEnableBackgroundThreadsInCycle(CallOrigin::kAtomicGC);
 
-  MarkLiveObjects();
+  MarkLiveObjects(); // 1. 标记
 
   if (auto* cpp_heap = CppHeap::From(heap_->cpp_heap_)) {
     cpp_heap->ProcessCrossThreadWeakness();
@@ -527,7 +528,7 @@ void MarkCompactCollector::CollectGarbage() {
   // This will walk dead object graphs and so requires that all references are
   // still intact.
   RecordObjectStats();
-  ClearNonLiveReferences();
+  ClearNonLiveReferences(); // 2. 清除弱引用、短字符等
   VerifyMarking();
 
   if (auto* cpp_heap = CppHeap::From(heap_->cpp_heap_)) {
@@ -536,8 +537,8 @@ void MarkCompactCollector::CollectGarbage() {
 
   heap_->memory_measurement()->FinishProcessing(native_context_stats_);
 
-  Sweep();
-  Evacuate();
+  Sweep(); // 3. 清扫，回收不可达页
+  Evacuate(); // 压缩，消除碎片
   Finish();
 }
 
@@ -2558,12 +2559,14 @@ void MarkCompactCollector::RetainMaps() {
   }
 }
 
+// 1， 三色标记
 void MarkCompactCollector::MarkLiveObjects() {
   TRACE_GC_ARG1(heap_->tracer(), GCTracer::Scope::MC_MARK,
                 "UseBackgroundThreads", UseBackgroundThreadsInCycle());
 
   const bool was_marked_incrementally =
       !heap_->incremental_marking()->IsStopped();
+  // 如果增量标记已经在运行，先停止并合并已有标记结果
   if (was_marked_incrementally) {
     auto* incremental_marking = heap_->incremental_marking();
     TRACE_GC_WITH_FLOW(
@@ -2588,12 +2591,13 @@ void MarkCompactCollector::MarkLiveObjects() {
 
   {
     TRACE_GC(heap_->tracer(), GCTracer::Scope::MC_MARK_ROOTS);
-    MarkRoots(&root_visitor);
+    // 1. 标记跟对象
+    MarkRoots(&root_visitor); // 栈、全局、内置对象等
   }
 
   {
     TRACE_GC(heap_->tracer(), GCTracer::Scope::MC_MARK_CLIENT_HEAPS);
-    MarkObjectsFromClientHeaps();
+    MarkObjectsFromClientHeaps(); // 多 Isolate 场景
   }
 
   {
@@ -2603,7 +2607,9 @@ void MarkCompactCollector::MarkLiveObjects() {
 
   if (v8_flags.parallel_marking && UseBackgroundThreadsInCycle()) {
     TRACE_GC(heap_->tracer(), GCTracer::Scope::MC_MARK_FULL_CLOSURE_PARALLEL);
+    // 2. 并行、并发传递闭包
     parallel_marking_ = true;
+    // 从根出发，基于工作栈的迭代 DFS 标记所有可达对象
     heap_->concurrent_marking()->RescheduleJobIfNeeded(
         GarbageCollector::MARK_COMPACTOR, TaskPriority::kUserBlocking);
     MarkTransitiveClosure();
@@ -2617,6 +2623,7 @@ void MarkCompactCollector::MarkLiveObjects() {
 
   {
     TRACE_GC(heap_->tracer(), GCTracer::Scope::MC_MARK_ROOTS);
+    // 3. 兜底：串行扫描保守栈（conservative stack scanning）
     MarkRootsFromConservativeStack(&root_visitor);
   }
 
@@ -5212,6 +5219,7 @@ class EvacuationWeakObjectRetainer : public WeakObjectRetainer {
   }
 };
 
+// 4. 压缩
 void MarkCompactCollector::Evacuate() {
   TRACE_GC(heap_->tracer(), GCTracer::Scope::MC_EVACUATE);
 

@@ -56,6 +56,7 @@ bool HeapLayout::InYoungGeneration(Tagged<MaybeObject> object) {
 // static
 bool HeapLayout::InYoungGeneration(Tagged<HeapObject> object) {
   return InYoungGeneration(MemoryChunk::FromHeapObject(object), object);
+  // 1. 对象地址 → 找到所在内存页
 }
 
 // static
