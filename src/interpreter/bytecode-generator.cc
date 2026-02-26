@@ -6794,16 +6794,20 @@ void BytecodeGenerator::VisitCall(Call* expr) {
   switch (call_type) {
     case Call::NAMED_PROPERTY_CALL:
     case Call::KEYED_PROPERTY_CALL:
+    // 隐式绑定
     case Call::PRIVATE_CALL: {
       Property* property = callee_expr->AsProperty();
       VisitAndPushIntoRegisterList(property->obj(), &args);
+      //  把 obj（点前面的对象）压入 args[0]，这就是 receiver
+
       VisitPropertyLoadForRegister(args.last_register(), property, callee);
       break;
     }
+    // 默认绑定
     case Call::GLOBAL_CALL: {
       // Receiver is undefined for global calls.
       if (spread_position == Call::kNoSpread) {
-        implicit_undefined_receiver = true;
+        implicit_undefined_receiver = true; // 标记 - 不注入receiver寄存器
       } else {
         // TODO(leszeks): There's no special bytecode for tail calls or spread
         // calls with an undefined receiver, so just push undefined ourselves.
@@ -6839,7 +6843,7 @@ void BytecodeGenerator::VisitCall(Call* expr) {
     case Call::OTHER_CALL: {
       // Receiver is undefined for other calls.
       if (spread_position == Call::kNoSpread) {
-        implicit_undefined_receiver = true;
+        implicit_undefined_receiver = true; // 独立调用 foo() 也走这里
       } else {
         // TODO(leszeks): There's no special bytecode for tail calls or spread
         // calls with an undefined receiver, so just push undefined ourselves.
@@ -6965,12 +6969,15 @@ void BytecodeGenerator::VisitCall(Call* expr) {
     DCHECK(!implicit_undefined_receiver);
     builder()->CallProperty(callee, args,
                             feedback_index(feedback_spec()->AddCallICSlot()));
+    // CallProperty - 隐式绑定专用字节码：args[0] 就是 receiver，即点前面的对象
   } else if (implicit_undefined_receiver) {
     builder()->CallUndefinedReceiver(
         callee, args, feedback_index(feedback_spec()->AddCallICSlot()));
+    // CallUndefinedReceiver - 默认规则专用字节码：receiver 槽为空，运行时填 undefined(严格) 或 global(宽松)
   } else {
     builder()->CallAnyReceiver(
         callee, args, feedback_index(feedback_spec()->AddCallICSlot()));
+    // CallAnyReceiver - 显式绑定字节码，覆盖 receiver 写入
   }
 }
 
@@ -7194,6 +7201,7 @@ void BytecodeGenerator::VisitCallNew(CallNew* expr) {
   } else {
     DCHECK_EQ(spread_position, CallNew::kNoSpread);
     builder()->Construct(constructor, args, feedback_slot_index);
+    // new规则专用字节码，完全独立于 VisitCall
   }
 }
 
@@ -8165,13 +8173,13 @@ void BytecodeGenerator::VisitTemplateLiteral(TemplateLiteral* expr) {
 }
 
 void BytecodeGenerator::BuildThisVariableLoad() {
-  DeclarationScope* receiver_scope = closure_scope()->GetReceiverScope();
+  DeclarationScope* receiver_scope = closure_scope()->GetReceiverScope(); // VisitThisExpression 调用链
   Variable* var = receiver_scope->receiver();
   // TODO(littledan): implement 'this' hole check elimination.
   HoleCheckMode hole_check_mode =
       IsDerivedConstructor(receiver_scope->function_kind())
-          ? HoleCheckMode::kRequired
-          : HoleCheckMode::kElided;
+          ? HoleCheckMode::kRequired // 派生类构造函数：需要空洞检查
+          : HoleCheckMode::kElided; // 普通函数：跳过检查
   BuildVariableLoad(var, hole_check_mode);
 }
 
@@ -8547,13 +8555,16 @@ void BytecodeGenerator::BuildNewLocalActivationContext() {
 void BytecodeGenerator::BuildLocalActivationContextInitialization() {
   DeclarationScope* scope = closure_scope();
 
+  // B. this被闭包捕获
+  // 若内层函数引用了外层函数的 this，分配阶段调用 ForceContextAllocation()，强制把 this 提升到 Context 堆槽
   if (scope->has_this_declaration() && scope->receiver()->IsContextSlot()) {
     Variable* variable = scope->receiver();
     Register receiver(builder()->Receiver());
     // Context variable (at bottom of the context chain).
     DCHECK_EQ(0, scope->ContextChainLength(variable->scope()));
     builder()->LoadAccumulatorWithRegister(receiver).StoreContextSlot(
-        execution_context()->reg(), variable, 0);
+        execution_context()->reg(), variable, 0); 
+        // 把栈帧里的 this 值，存入 Context[slot_index]
   }
 
   // Copy parameters into context if necessary.

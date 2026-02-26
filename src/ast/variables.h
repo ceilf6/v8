@@ -282,10 +282,13 @@ class Variable final : public ZoneObject {
 
   int index() const { return index_; }
 
+  // 2. 运行期 this 存储位置
+    // A. 普通函数
   bool IsReceiver() const {
     DCHECK(IsParameter());
 
-    return index_ == -1;
+    return index_ == -1; // receiver 的参数索引是特殊值 -1
+    // this 被视为一个 index=-1 的特殊参数，存在栈帧的 Receiver 寄存器里，而不是普通参数列表里
   }
 
   bool IsExport() const {

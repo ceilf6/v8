@@ -331,7 +331,9 @@ void DeclarationScope::SetDefaults() {
   set_is_skipped_function(false);
   set_has_checked_syntax(false);
   set_has_this_reference(false);
-  set_has_this_declaration((is_function_scope() && !is_arrow_scope()) ||
+  set_has_this_declaration((is_function_scope() && !is_arrow_scope()) // 函数作用域，但排除箭头函数
+  // 箭头函数被显式排除，所以箭头函数没有自己的 this
+  ||
                            is_module_scope());
   set_needs_private_name_context_chain_recalc(false);
   set_class_scope_has_private_brand(false);
@@ -756,25 +758,26 @@ bool DeclarationScope::Analyze(ParseInfo* info) {
   return true;
 }
 
+// 1. 编译期：声明 this 变量
 void DeclarationScope::DeclareThis(AstValueFactory* ast_value_factory) {
-  DCHECK(has_this_declaration());
-
   bool derived_constructor = IsDerivedConstructor(function_kind_);
-
   receiver_ = zone()->New<Variable>(
-      this, ast_value_factory->this_string(),
-      derived_constructor ? VariableMode::kConst : VariableMode::kVar,
+      this,
+      ast_value_factory->this_string(),          // 名字就是字符串 "this"
+      derived_constructor ? VariableMode::kConst  // 派生类构造函数 → const
+                          : VariableMode::kVar,   // 普通函数 → var
       THIS_VARIABLE,
-      derived_constructor ? kNeedsInitialization : kCreatedInitialized,
+      derived_constructor ? kNeedsInitialization  // TDZ
+                          : kCreatedInitialized,  // 立即可用
       kNotAssigned);
   // Derived constructors have hole checks when calling super. Mark the 'this'
   // variable as having hole initialization forced so that TDZ elision analysis
   // applies and numbers the variable.
   if (derived_constructor) {
     receiver_->ForceHoleInitialization(
-        Variable::kHasHoleCheckUseInUnknownScope);
+        Variable::kHasHoleCheckUseInUnknownScope); // 强制打洞
   }
-  locals_.Add(receiver_);
+  locals_.Add(receiver_);  // 加入局部变量列表
 }
 
 void DeclarationScope::DeclareArguments(AstValueFactory* ast_value_factory) {
@@ -1525,7 +1528,7 @@ DeclarationScope* Scope::GetReceiverScope() {
   while (!scope->is_declaration_scope() ||
          (!scope->is_script_scope() &&
           !scope->AsDeclarationScope()->has_this_declaration())) {
-    scope = scope->outer_scope();
+    scope = scope->outer_scope(); // 箭头函数没有 has_this_declaration，直接跳过
   }
   return scope->AsDeclarationScope();
 }
