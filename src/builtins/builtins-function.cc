@@ -44,6 +44,7 @@ MaybeDirectHandle<Object> CreateDynamicFunction(Isolate* isolate,
   DirectHandle<String> source;
   int parameters_end_pos = kNoSourcePosition;
   {
+    // 1. 拼接字符串："(function anonymous(<params>) {\n<body>\n})"
     IncrementalStringBuilder builder(isolate);
     builder.AppendCharacter('(');
     builder.AppendCString(token);
@@ -85,6 +86,7 @@ MaybeDirectHandle<Object> CreateDynamicFunction(Isolate* isolate,
   {
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, function,
+        // 2. 调用编译器解析 + 编译这个字符串
         Compiler::GetFunctionFromString(
             isolate, direct_handle(target->native_context(), isolate),
             indirect_handle(source, isolate), parameters_end_pos,
@@ -92,6 +94,7 @@ MaybeDirectHandle<Object> CreateDynamicFunction(Isolate* isolate,
     DirectHandle<Object> result;
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, result,
+        // 3. 执行包装函数，返回内部函数作为结果
         Execution::Call(isolate, function, target_global_proxy, {}));
     function = Cast<JSFunction>(result);
     function->shared()->set_name_should_print_as_anonymous(true);
@@ -118,6 +121,7 @@ MaybeDirectHandle<Object> CreateDynamicFunction(Isolate* isolate,
         Map::AsLanguageMode(isolate, initial_map, shared_info);
 
     DirectHandle<Context> context(function->context(), isolate);
+    // 4. 分配结果 JSFunction（kYoung → 新生代）
     function = Factory::JSFunctionBuilder{isolate, shared_info, context}
                    .set_map(map)
                    .set_allocation_type(AllocationType::kYoung)
@@ -133,6 +137,7 @@ BUILTIN(FunctionConstructor) {
   HandleScope scope(isolate);
   DirectHandle<Object> result;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
+      // new Function 时
       isolate, result, CreateDynamicFunction(isolate, args, "function"));
   return *result;
 }

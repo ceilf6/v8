@@ -1500,9 +1500,13 @@ static void InstallWithIntrinsicDefaultProto(Isolate* isolate,
                                              DirectHandle<JSFunction> function,
                                              int context_index) {
   DirectHandle<Smi> index(Smi::FromInt(context_index), isolate);
+  // 把 index 作为属性写到函数对象自身（供反序列化用）
   JSObject::AddProperty(isolate, function,
                         isolate->factory()->native_context_index_symbol(),
                         index, NONE);
+  // 写入 NativeContext[FUNCTION_FUNCTION_INDEX] ← 全局唯一位置
+  // FUNCTION_FUNCTION_INDEX 是 contexts 里的宏展开槽位
+  // native_context()->function_function() 随时可取出 Function 对象
   isolate->native_context()->set(context_index, *function, UPDATE_WRITE_BARRIER,
                                  kReleaseStore);
 }
@@ -2102,10 +2106,13 @@ void LazyInitializeGlobalThisTemporal(
 
 // This is only called if we are not using snapshots.  The equivalent
 // work in the snapshot case is done in HookUpGlobalObject.
+// 启动入口
 void Genesis::InitializeGlobal(DirectHandle<JSGlobalObject> global_object,
                                DirectHandle<JSFunction> empty_function) {
   // --- N a t i v e   C o n t e x t ---
   // Set extension and global object.
+  // 1. V8 启动时创建 NativeContext（全局运行时环境），
+  // 然后执行 InitializeGlobal，在这里注册所有内置全局对象（Object、Function、Array …）
   native_context()->set_extension(*global_object);
   // Security setup: Set the security token of the native context to the global
   // object. This makes the security check between two different contexts fail
@@ -2274,14 +2281,26 @@ void Genesis::InitializeGlobal(DirectHandle<JSGlobalObject> global_object,
   DirectHandle<JSObject> global(native_context()->global_object(), isolate());
 
   {  // --- F u n c t i o n ---
+    // 2. 创建 Function 对象本身
     DirectHandle<JSFunction> prototype = empty_function;
     DirectHandle<JSFunction> function_fun =
-        InstallFunction(isolate_, global, "Function", JS_FUNCTION_TYPE,
-                        JSFunction::kSizeWithPrototype, 0, prototype,
-                        Builtin::kFunctionConstructor, 1, kDontAdapt);
+        // InstallFunction = CreateFunction + JSObject::AddProperty(global, "Function", fn)
+        // 创建一个 JSFunction 对象并把它作为属性写入 global
+        InstallFunction(
+            isolate_
+            , global // 挂载到 global 对象上
+            , "Function" // 属性名为 Function
+            , JS_FUNCTION_TYPE // 内部属性
+            ,JSFunction::kSizeWithPrototype
+            , 0
+            , prototype // Function.prototype = func自身 empty_function 
+            ,Builtin::kFunctionConstructor // 绑定内置实现
+            , 1, kDontAdapt);
     // Function instances are sloppy by default.
+    // Function 实例默认是 sloppy 模式 - 宽松模式
     function_fun->set_prototype_or_initial_map(*isolate_->sloppy_function_map(),
                                                kReleaseStore);
+    // 存入 NativeContext 固定 slot
     InstallWithIntrinsicDefaultProto(isolate_, function_fun,
                                      Context::FUNCTION_FUNCTION_INDEX);
     native_context()->set_function_prototype(*prototype);
@@ -2289,6 +2308,8 @@ void Genesis::InitializeGlobal(DirectHandle<JSGlobalObject> global_object,
     // Setup the methods on the %FunctionPrototype%.
     JSObject::AddProperty(isolate_, prototype, factory->constructor_string(),
                           function_fun, DONT_ENUM);
+    // 注册 Function 的 prototype 方法
+    // apply / bind / call / toString / @@hasInstance
     DirectHandle<JSFunction> function_prototype_apply =
         SimpleInstallFunction(isolate_, prototype, "apply",
                               Builtin::kFunctionPrototypeApply, 2, kDontAdapt);
@@ -2322,6 +2343,9 @@ void Genesis::InitializeGlobal(DirectHandle<JSGlobalObject> global_object,
 
     // Complete setting up function maps.
     {
+      // 4. 把所有函数 Map 的 constructor 指向它
+      // (function(){}).constructor === Function 的底层来源——任何函数对象所在 Map 的 constructor slot，都在初始化时被写成了同一个 function_fun 对象
+      // 所有函数对象都是通过 Function 创建的
       isolate_->sloppy_function_map()->SetConstructor(*function_fun);
       isolate_->sloppy_function_with_name_map()->SetConstructor(*function_fun);
       isolate_->sloppy_function_with_readonly_prototype_map()->SetConstructor(
@@ -2462,6 +2486,7 @@ void Genesis::InitializeGlobal(DirectHandle<JSGlobalObject> global_object,
     DirectHandle<JSFunction> for_each_fun = SimpleInstallFunction(
         isolate_, proto, "forEach", Builtin::kArrayForEach, 1, kDontAdapt);
     native_context()->set_array_for_each_iterator(*for_each_fun);
+    // Array构造期函数 原型方法 - 静态方法
     SimpleInstallFunction(isolate_, proto, "filter", Builtin::kArrayFilter, 1,
                           kDontAdapt);
     SimpleInstallFunction(isolate_, proto, "flat", Builtin::kArrayPrototypeFlat,
