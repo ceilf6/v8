@@ -54,6 +54,9 @@ class MarkBit final {
  private:
   inline MarkBit(CellType* cell, CellType mask) : cell_(cell), mask_(mask) {}
 
+  // bit = 0 → 白色（未标记）
+  // bit = 1 → 黑色（已完全标记）
+  // "灰色" = bit=1 但仍在 marking worklist 中
   CellType* const cell_;
   const CellType mask_;
 

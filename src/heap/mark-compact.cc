@@ -2296,7 +2296,7 @@ std::pair<size_t, size_t> MarkCompactCollector::ProcessMarkingWorklist(
         GarbageCollector::MARK_COMPACTOR, TaskPriority::kUserBlocking);
   }
 
-  while (local_marking_worklists_->Pop(&object) ||
+  while (local_marking_worklists_->Pop(&object) || // 从 worklist 中取出灰色对象
          local_marking_worklists_->PopOnHold(&object)) {
     // The marking worklist should never contain filler objects.
     CHECK(!IsFreeSpaceOrFiller(object, cage_base));
@@ -2305,6 +2305,7 @@ std::pair<size_t, size_t> MarkCompactCollector::ProcessMarkingWorklist(
     DCHECK_EQ(HeapUtils::GetOwnerHeap(object), heap_);
     DCHECK(heap_->Contains(object));
     DCHECK(!(marking_state_->IsUnmarked(object)));
+    // 加入 worklist 时 bit 肯定就是1 ，那么出来后就自然是黑色了
 
     if constexpr (mode ==
                   MarkingWorklistProcessingMode::kProcessRememberedEphemerons) {
@@ -2329,6 +2330,8 @@ std::pair<size_t, size_t> MarkCompactCollector::ProcessMarkingWorklist(
       }
     }
     const auto visited_size = marking_visitor_->Visit(map, object);
+    // 对 Visit 内部遍历 object 的所有引用字段
+    // 对每个白色子对象调用MarkObject() => 涂灰 worklist
     if (visited_size) {
       MutablePage::FromHeapObject(heap_->isolate(), object)
           ->IncrementLiveBytesAtomically(
@@ -2591,8 +2594,8 @@ void MarkCompactCollector::MarkLiveObjects() {
 
   {
     TRACE_GC(heap_->tracer(), GCTracer::Scope::MC_MARK_ROOTS);
-    // 1. 标记跟对象
-    MarkRoots(&root_visitor); // 栈、全局、内置对象等
+    // 1. 标记根对象，把所有根涂成灰色、加入worklist
+    MarkRoots(&root_visitor); // 根有 栈变量、全局变量、内置对象 NativeContext中的固定slot 等
   }
 
   {
@@ -2612,6 +2615,7 @@ void MarkCompactCollector::MarkLiveObjects() {
     // 从根出发，基于工作栈的迭代 DFS 标记所有可达对象
     heap_->concurrent_marking()->RescheduleJobIfNeeded(
         GarbageCollector::MARK_COMPACTOR, TaskPriority::kUserBlocking);
+    // 不断取出灰色对象，深度优先扫描所有子引用并涂灰，自身变黑
     MarkTransitiveClosure();
     {
       TRACE_GC(heap_->tracer(),
@@ -2638,6 +2642,7 @@ void MarkCompactCollector::MarkLiveObjects() {
       cpp_heap->EnterProcessGlobalAtomicPause();
     }
     MarkTransitiveClosure();
+    // 结束：白色垃圾，黑色存活
     CHECK(local_marking_worklists_->IsEmpty());
     CHECK(
         local_weak_objects()->current_ephemerons_local.IsLocalAndGlobalEmpty());
