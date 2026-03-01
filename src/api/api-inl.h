@@ -165,8 +165,10 @@ class V8_NODISCARD CallDepthScope {
 
     if (do_callback) isolate_->FireBeforeCallEnteredCallback();
   }
+  // CallDepthScope 是 RAII：每次 JS → C++ 边界调用时构造，返回时析构
   ~CallDepthScope() {
     isolate_->thread_local_top()->DecrementCallDepth(this);
+    // 调用深度减一
     // Clear the exception when exiting V8 to avoid memory leaks.
     // Also clear termination exceptions iff there's no TryCatch handler.
     // TODO(verwaest): Drop this once we propagate exceptions to external
@@ -181,6 +183,7 @@ class V8_NODISCARD CallDepthScope {
       i::MicrotaskQueue* microtask_queue =
           isolate_->native_context()->microtask_queue(isolate_);
       isolate_->FireCallCompletedCallback(microtask_queue);
+      // 调用完成回调
 #ifdef DEBUG
       if (microtask_queue && microtask_queue->microtasks_policy() ==
                                  v8::MicrotasksPolicy::kScoped) {

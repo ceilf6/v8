@@ -51,6 +51,8 @@ class Task {
  public:
   virtual ~Task() = default;
 
+  // 纯虚，由宿主环境水岸
+  // V8引擎只负责了微任务的调度，宏任务相关是纯虚函数让宿主环境覆盖
   virtual void Run() = 0;
 };
 

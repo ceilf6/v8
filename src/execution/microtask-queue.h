@@ -48,12 +48,14 @@ class V8_EXPORT_PRIVATE MicrotaskQueue final : public v8::MicrotaskQueue {
     PerformCheckpointInternal(isolate);
   }
 
+  // 调用栈完全归零 + 没有嵌套 → 自动清空 Promise.then / queueMicrotask 队列
   bool ShouldPerfomCheckpoint() const {
-    return !IsRunningMicrotasks() && !GetMicrotasksScopeDepth() &&
-           !HasMicrotasksSuppressions();
+    return !IsRunningMicrotasks() // 没有在执行微任务
+    && !GetMicrotasksScopeDepth() // 没有嵌套的 MicrotasksScope
+    && !HasMicrotasksSuppressions(); // 没有被压制
   }
 
-  void EnqueueMicrotask(Tagged<Microtask> microtask);
+  void EnqueueMicrotask(Tagged<Microtask> microtask); // 微任务入队
   void AddMicrotasksCompletedCallback(
       MicrotasksCompletedCallbackWithData callback, void* data) override;
   void RemoveMicrotasksCompletedCallback(
@@ -63,7 +65,7 @@ class V8_EXPORT_PRIVATE MicrotaskQueue final : public v8::MicrotaskQueue {
   // Runs all queued Microtasks.
   // Returns -1 if the execution is terminating, otherwise, returns the number
   // of microtasks that ran in this round.
-  int RunMicrotasks(Isolate* isolate);
+  int RunMicrotasks(Isolate* isolate); // 清空执行
 
   // Iterate all pending Microtasks in this queue as strong roots, so that
   // builtins can update the queue directly without the write barrier.
@@ -116,7 +118,7 @@ class V8_EXPORT_PRIVATE MicrotaskQueue final : public v8::MicrotaskQueue {
   static const intptr_t kMinimumCapacity;
 
  private:
-  void PerformCheckpointInternal(v8::Isolate* v8_isolate);
+  void PerformCheckpointInternal(v8::Isolate* v8_isolate); // 检查是否该执行
 
   void OnCompleted(Isolate* isolate);
 
