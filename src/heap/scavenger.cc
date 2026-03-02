@@ -1632,12 +1632,20 @@ void ScavengerCollector::CollectGarbage() {
 
   SemiSpaceNewSpace* new_space = SemiSpaceNewSpace::From(heap_->new_space());
   new_space->GarbageCollectionPrologue();
-  new_space->SwapSemiSpaces();
+  new_space->SwapSemiSpaces(); // From-space 和 To-space 互换
+  // 类似于 Fiber双缓冲 都是 ping-pong 双缓冲模式，旧的 From-space 直接作为下次的 To-space 省得需要向内存申请空间
+  // 新生代的复制 GC 是以空间换时间，且时间代价与存活量成正比。老生代存活量大、体积大，两个维度都不划算
 
   // We also flip the young generation large object space. All large objects
   // will be in the from space.
-  heap_->new_lo_space()->Flip();
+  heap_->new_lo_space()->Flip(); // 大对象空间也翻转
   heap_->new_lo_space()->ResetPendingObject();
+
+    // 遍历老生代到新生代的引用（Remembered Set）
+    // 遍历根（栈、全局）
+    // 每个可达新生代对象：
+    //   → 存活次数少 → 复制到 To-space
+    //   → 存活次数多 → Promote 晋升到 OLD_SPACE
 
   DCHECK(!heap_->allocator()->new_space_allocator()->IsLabValid());
 
@@ -1971,8 +1979,10 @@ bool Scavenger::TryMigrateObject(Tagged<Map> map, THeapObjectSlot slot,
   // object was already copied by another thread. We only access the page header
   // of such objects and this is safe because of the memory fence after page
   // header initialization.
+  // 原子地把 MapWord 从 "真实 Map" 换成 "转发地址 target"
   if (!source->relaxed_compare_and_swap_map_word_forwarded(
           MapWord::FromMap(map), target)) {
+            // CAS 失败 = 另一个线程已经复制了它，allocator_ 退回分配空间
     // Other task migrated the object.
     allocator_.FreeLast(space, target, object_size);
     const MapWord map_word = source->map_word(kRelaxedLoad);
@@ -1987,6 +1997,7 @@ bool Scavenger::TryMigrateObject(Tagged<Map> map, THeapObjectSlot slot,
   // failure case. It also helps us to ensure that we do not rely on non-relaxed
   // memory ordering for the CAS above.
   target->set_map_word(map, kRelaxedStore);
+  // CAS 成功后，才 memcpy 内容
   heap()->CopyBlock(target.address() + kTaggedSize,
                     source.address() + kTaggedSize,
                     object_size.value() - kTaggedSize);
